@@ -1,0 +1,89 @@
+trigger:
+- master
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  # ---- Set these to match your Azure DevOps project ----
+  dockerRegistryServiceConnection: 'my-acr-connection'      # Docker registry service connection name
+  containerRegistry: 'myregistry.azurecr.io'                # registry login server
+  imageRepository: 'selenium-tests'
+  kubernetesServiceConnection: 'my-k8s-connection'          # Kubernetes service connection name
+  k8sNamespace: 'default'
+  # -------------------------------------------------------
+  imageTag: '$(Build.BuildId)'
+
+stages:
+
+- stage: Test
+  displayName: 'Run tests on build agent'
+  jobs:
+  - job: Maven
+    steps:
+    - task: Maven@4
+      displayName: 'Build and Run Selenium Tests'
+      inputs:
+        mavenPomFile: 'pom.xml'
+        mavenOptions: '-Xmx3072m'
+        javaHomeOption: 'JDKVersion'
+        jdkVersionOption: '1.17'
+        jdkArchitectureOption: 'x64'
+        publishJUnitResults: true
+        testResultsFiles: '**/surefire-reports/TEST-*.xml'
+        goals: 'clean test'
+      env:
+        # Hosted agents have no display, so run Chrome headless
+        BROWSER: chrome
+        HEADLESS: 'true'
+
+- stage: Kubernetes
+  displayName: 'Build image and run tests as a Kubernetes Job'
+  dependsOn: Test
+  jobs:
+  - job: DockerAndK8s
+    steps:
+    - task: Docker@2
+      displayName: 'Build and push test image'
+      inputs:
+        command: buildAndPush
+        containerRegistry: '$(dockerRegistryServiceConnection)'
+        repository: '$(imageRepository)'
+        dockerfile: 'Dockerfile'
+        tags: |
+          $(imageTag)
+
+    - task: Kubernetes@1
+      displayName: 'kubectl login'
+      inputs:
+        connectionType: 'Kubernetes Service Connection'
+        kubernetesServiceEndpoint: '$(kubernetesServiceConnection)'
+        command: login
+
+    - bash: |
+        set -u
+        NS="$(k8sNamespace)"
+        IMAGE="$(containerRegistry)/$(imageRepository):$(imageTag)"
+
+        # Job specs are immutable, so remove the previous run first
+        kubectl delete job selenium-tests -n "$NS" --ignore-not-found --wait=true
+        sed "s|IMAGE_PLACEHOLDER|$IMAGE|" k8s/selenium-tests-job.yaml | kubectl apply -n "$NS" -f -
+
+        succeeded=""
+        failed=""
+        for i in $(seq 1 186); do   # ~31 minutes, just over activeDeadlineSeconds
+          succeeded=$(kubectl get job selenium-tests -n "$NS" -o jsonpath='{.status.succeeded}')
+          failed=$(kubectl get job selenium-tests -n "$NS" -o jsonpath='{.status.failed}')
+          if [ "$succeeded" = "1" ]; then break; fi
+          if [ -n "$failed" ] && [ "$failed" != "0" ]; then break; fi
+          sleep 10
+        done
+
+        echo "===== Test pod logs ====="
+        kubectl logs job/selenium-tests -n "$NS" --tail=-1 || true
+
+        if [ "$succeeded" != "1" ]; then
+          echo "##vso[task.logissue type=error]Selenium tests failed or timed out in Kubernetes"
+          exit 1
+        fi
+      displayName: 'Run Selenium tests Job and wait for result'

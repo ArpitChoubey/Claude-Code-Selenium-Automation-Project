@@ -1,0 +1,5 @@
+.git
+**/target
+**/test-output
+*.class
+SeleniumRepo

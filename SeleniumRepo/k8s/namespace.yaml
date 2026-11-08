@@ -1,0 +1,7 @@
+# Namespace that holds the Selenium Grid and the test Job.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: selenium-tests
+  labels:
+    app.kubernetes.io/part-of: selenium-tests

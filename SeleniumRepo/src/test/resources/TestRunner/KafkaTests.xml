@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+
+<!--
+  Kafka test suite. Run with:
+    mvn test -Dtestng.suite=src/test/resources/TestRunner/KafkaTests.xml
+  The integration tests need a broker on localhost:9092 (start the "kafka" Docker Compose profile).
+-->
+<suite name="Kafka Suite" verbose="2">
+
+	<test name="Kafka unit tests (no broker)">
+		<classes>
+			<class name="com.masterclass.kafka.validation.JsonSchemaValidatorTest" />
+			<class name="com.masterclass.kafka.KafkaClientsMockTest" />
+		</classes>
+	</test>
+
+	<test name="Kafka integration tests (needs broker)">
+		<classes>
+			<class name="com.masterclass.kafka.admin.KafkaTopicManagerTest" />
+			<class name="com.masterclass.kafka.integration.KafkaProducerConsumerTest" />
+		</classes>
+	</test>
+
+</suite>

@@ -1,0 +1,20 @@
+# Stable in-cluster address for the Selenium Grid:
+#   http://selenium-grid.selenium-tests.svc.cluster.local:4444  (or http://selenium-grid:4444 from the same namespace)
+apiVersion: v1
+kind: Service
+metadata:
+  name: selenium-grid
+  namespace: selenium-tests
+  labels:
+    app: selenium-grid
+spec:
+  type: ClusterIP
+  selector:
+    app: selenium-grid
+  ports:
+    - name: webdriver
+      port: 4444
+      targetPort: webdriver
+    - name: novnc
+      port: 7900
+      targetPort: novnc

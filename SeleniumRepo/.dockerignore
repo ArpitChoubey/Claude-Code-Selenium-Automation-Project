@@ -1,0 +1,9 @@
+.git
+.settings
+.classpath
+.project
+target
+test-output
+k8s
+azure-pipelines.yml
+*.md

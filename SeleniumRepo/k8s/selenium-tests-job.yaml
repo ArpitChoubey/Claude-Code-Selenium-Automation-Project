@@ -1,0 +1,48 @@
+# Runs the Selenium TestNG suite once, in headless Chrome, inside the cluster.
+# IMAGE_PLACEHOLDER is replaced by the pipeline with the pushed image.
+# For a local cluster: build the image as selenium-tests:local and replace the placeholder by hand.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: selenium-tests
+  labels:
+    app: selenium-tests
+spec:
+  backoffLimit: 0                 # UI tests: don't silently retry a failed run
+  activeDeadlineSeconds: 1800     # give up after 30 minutes
+  ttlSecondsAfterFinished: 86400  # clean the finished Job up after a day
+  template:
+    metadata:
+      labels:
+        app: selenium-tests
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: selenium-tests
+          image: IMAGE_PLACEHOLDER
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: BROWSER
+              value: "chrome"
+            - name: HEADLESS
+              value: "true"
+            # Uncomment to run the browsers on the Selenium Grid (deployment.yaml + service.yaml)
+            # instead of the Chrome inside this container:
+            # - name: SELENIUM_REMOTE_URL
+            #   value: "http://selenium-grid:4444"
+          resources:
+            requests:
+              cpu: "1"
+              memory: 2Gi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+          volumeMounts:
+            - name: dshm
+              mountPath: /dev/shm
+      volumes:
+        # Chrome needs more shared memory than the container default (64Mi)
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Gi

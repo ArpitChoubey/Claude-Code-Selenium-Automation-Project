@@ -1,0 +1,65 @@
+# Selenium Grid (standalone Chrome) that tests connect to with RemoteWebDriver.
+# Version matches selenium-java 4.11.0 in pom.xml.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: selenium-grid
+  namespace: selenium-tests
+  labels:
+    app: selenium-grid
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: selenium-grid
+  template:
+    metadata:
+      labels:
+        app: selenium-grid
+    spec:
+      containers:
+        - name: standalone-chrome
+          image: selenium/standalone-chrome:4.11.0-20230801
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: webdriver
+              containerPort: 4444
+            - name: novnc
+              containerPort: 7900   # watch the browser at http://localhost:7900 (password: secret)
+          env:
+            # The suite runs tests in parallel, so allow several browsers at once
+            - name: SE_NODE_MAX_SESSIONS
+              value: "4"
+            - name: SE_NODE_OVERRIDE_MAX_SESSIONS
+              value: "true"
+            # Close sessions left open by a crashed test after 5 minutes
+            - name: SE_NODE_SESSION_TIMEOUT
+              value: "300"
+          readinessProbe:
+            httpGet:
+              path: /status
+              port: 4444
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /status
+              port: 4444
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "1"
+              memory: 2Gi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+          volumeMounts:
+            - name: dshm
+              mountPath: /dev/shm
+      volumes:
+        # Chrome crashes with the default 64Mi of shared memory
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 2Gi
